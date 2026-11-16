@@ -37,7 +37,7 @@
     const retained = p.reasons.includes('数量达到上限') && p.parts.length < limit.count ||
       p.reasons.includes('重量达到上限') && p.weight < limit.weight;
     const note = p.allowance ? '已允许额外 1 件，等待分拣接收' : p.pending ? '1 件正在入盘，完成前不可复位' : retained && !p.fullAlarmAcknowledged ? '此前已触发容量报警' : '';
-    const rows = p.parts.slice(0, 3).map(part => `<tr><td>${escapeHTML(part.id)}</td><td>${escapeHTML(part.workOrderNo)}</td><td>${escapeHTML(part.flow)}</td><td class="numeric">${formatPartWeight(part.weight)}</td><td class="numeric">${format(part.length)}</td></tr>`).join('');
+    const rows = p.parts.slice(0, 6).map(part => `<tr><td>${escapeHTML(part.id)}</td><td>${escapeHTML(part.workOrderNo)}</td><td>${escapeHTML(part.flow)}</td><td>${partMarkTags(part)}</td><td class="numeric">${format(part.length)}</td><td class="numeric">${formatPartWeight(part.weight)}</td><td>分拣完成</td><td>${p.name}</td></tr>`).join('');
     const receivingStatus = p.clearedAlarmReasons.length ? '满盘报警已解除 · 恢复收件' : '正常接收 · 未触发满盘条件';
     const reasons = p.reasons.length ? p.reasons : [receivingStatus];
     const reasonText = escapeHTML(reasons.join('；'));
@@ -47,7 +47,7 @@
       <div class="workbench-heading"><div class="workbench-identity"><div><h2 id="workbench-${p.id}">${p.name}</h2><div class="workbench-number">${escapeHTML(p.number)}</div></div>${statusHTML(p)}</div></div>
       <div class="workbench-metrics">${metric('累计数量', p.parts.length, limit.count, '件')}${metric('累计重量', p.weight, limit.weight, 'kg')}</div>
       <div class="workbench-reason ${alarmStyle}" title="${reasonText}"><span>${displayedReason}</span>${note ? `<span class="workbench-note">${escapeHTML(note)}</span>` : ''}</div>
-      <div class="workbench-preview"><table class="workbench-table" aria-label="${p.name}零件摘要"><thead><tr><th>零件编号</th><th>工单号</th><th>流向</th><th class="numeric">重量 / kg</th><th class="numeric">长度 / mm</th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="workbench-empty">空托盘 · 等待零件入盘</td></tr>'}</tbody></table></div>
+      <div class="workbench-preview" tabindex="0" role="region" aria-label="${p.name}零件概览"><table class="workbench-table" aria-label="${p.name}零件摘要"><thead><tr><th>零件编号</th><th>工单号</th><th>流向</th><th>标记</th><th class="numeric">长度 / mm</th><th class="numeric">重量 / kg</th><th>分拣状态</th><th>目标位置</th></tr></thead><tbody>${rows || '<tr><td colspan="8" class="workbench-empty">空托盘 · 等待零件入盘</td></tr>'}</tbody></table></div>
       <div class="workbench-footer"><div class="workbench-actions" role="group" aria-label="${p.name}操作">
         <button class="btn" data-action="one" data-id="${p.id}" hidden ${locked || !p.latched || p.allowance ? 'disabled' : ''}>再加一件</button>
         <button class="btn" data-action="continue" data-id="${p.id}" hidden ${locked || p.allowMixedFlow || p.allowance ? 'disabled' : ''}>${p.allowMixedFlow ? '已启用不限流向' : '继续装盘（不限流向）'}</button>
@@ -94,14 +94,14 @@
   }
   function partRows(parts, start = 0, historical = false) {
     return parts.map((p, i) => {
-      const weight = historical ? '' : `<td class="numeric">${formatPartWeight(p.weight)}</td>`;
+      const nesting = historical ? `<td>${escapeHTML(p.nestingName || '—')}</td>` : '';
       const times = historical
         ? `<td>${formatSortTime(p.sortStartedAt) || '—'}</td><td>${formatSortTime(p.sortReportedAt) || '—'}</td>`
         : '';
-      return `<tr><td>${String(start + i + 1).padStart(2, '0')}</td><td class="part-id">${escapeHTML(p.id)}</td><td>${escapeHTML(p.workOrderNo)}</td><td><span class="flow">${escapeHTML(p.flow)}</span></td><td class="mark">${partMarkTags(p)}</td><td>${escapeHTML(p.ship)}</td><td>${escapeHTML(p.section)}</td><td>${escapeHTML(p.program)}</td><td>${escapeHTML(p.profile)}</td><td>${escapeHTML(p.material)}</td>${weight}<td class="numeric">${format(p.length)}</td>${times}</tr>`;
+      return `<tr><td>${String(start + i + 1).padStart(2, '0')}</td><td class="part-id">${escapeHTML(p.id)}</td><td>${escapeHTML(p.workOrderNo)}</td>${nesting}<td><span class="flow">${escapeHTML(p.flow)}</span></td><td class="mark">${partMarkTags(p)}</td><td>${escapeHTML(p.profile)}</td><td>${escapeHTML(p.material)}</td><td class="numeric">${format(p.length)}</td><td class="numeric">${formatPartWeight(p.weight)}</td>${times}</tr>`;
     }).join('');
   }
-  const emptyRow = (title, note, columns = 12) => `<tr><td colspan="${columns}" class="empty"><strong>${title}</strong>${note}</td></tr>`;
+  const emptyRow = (title, note, columns = 9) => `<tr><td colspan="${columns}" class="empty"><strong>${title}</strong>${note}</td></tr>`;
   function renderRows() {
     const parts = filteredParts(), totalPages = Math.max(1, Math.ceil(parts.length / pageSize)); page = Math.min(page, totalPages);
     const start = (page - 1) * pageSize;
@@ -140,7 +140,7 @@
     const record = store.history[historyIndex];
     $('history-title').textContent = record ? `${record.name} · ${record.number}` : '历史盘内零件';
     $('history-caption').textContent = record ? `装载批次 ${record.cycle} · ${record.parts.length} 件 · 归档原因：${record.reasons.join('；') || '手工吊装换盘'}` : '选择历史托盘查看其全部零件';
-    $('history-rows').innerHTML = record && record.parts.length ? partRows(record.parts, 0, true) : emptyRow(record ? '该历史托盘无零件' : '暂无历史明细', '历史明细与当前托盘分开保存。', 13);
+    $('history-rows').innerHTML = record && record.parts.length ? partRows(record.parts, 0, true) : emptyRow(record ? '该历史托盘无零件' : '暂无历史明细', '历史明细与当前托盘分开保存。', 12);
     $('export-history').disabled = !record?.parts.length;
   }
   function renderAll() {
@@ -379,14 +379,14 @@
     } catch (error) { $('reset-error').textContent = error.message; }
   });
   function demoPart(id, flow, length, program) {
-    return {id, workOrderNo: 'WO-20261116-03', flow, marks: [], ship: 'N1130', section: 'FC2P', program, profile: 'HP 120×7', material: 'DH36', length};
+    return {id, workOrderNo: 'WO-20261116-03', nestingName: 'NEST-DEMO-03', flow, marks: [], ship: 'N1130', section: 'FC2P', program, profile: 'HP 120×7', material: 'DH36', length};
   }
   function exportHistoryCSV(records, filename) {
-    const header = ['托盘位置', '托盘编号', '装载批次', '状态', '累计数量(件)', '累计重量(kg)', '归档时间', '零件编号', '工单号', '流向', '标记', '船号', '分段号', '程序号', '型材规格', '材质', '零件长度(mm)', '分拣开工时间', '分拣报工时间'];
-    const details = records.flatMap(p => p.parts.map(part =>
+    const header = ['托盘位置', '托盘编号', '装载批次', '状态', '累计数量(件)', '累计重量(kg)', '归档时间', '序号', '零件编号', '工单号', '套料名称', '流向', '标记', '规格', '材质', '长度 / mm', '重量 / kg', '分拣开工时间', '分拣报工时间'];
+    const details = records.flatMap(p => p.parts.map((part, index) =>
       [p.name, p.number, p.cycle, p.status, p.parts.length, p.weight, p.completedAt || '',
-        part.id, part.workOrderNo, part.flow, partMarks(part).join('、'), part.ship, part.section, part.program,
-        part.profile, part.material, part.length, formatSortTime(part.sortStartedAt), formatSortTime(part.sortReportedAt)]
+        index + 1, part.id, part.workOrderNo, part.nestingName ?? '', part.flow, partMarks(part).join('、'),
+        part.profile, part.material, part.length, part.weight ?? '', formatSortTime(part.sortStartedAt), formatSortTime(part.sortReportedAt)]
     ));
     if (!details.length) return;
     const cell = value => { let text = String(value); if (/^[=+@\-\t\r\n]/.test(text)) text = "'" + text; return '"' + text.replace(/"/g, '""') + '"'; };

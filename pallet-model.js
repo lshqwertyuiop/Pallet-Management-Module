@@ -51,7 +51,10 @@
     const sortStartedAt = sortingTime(part.sortStartedAt, '分拣开工时间');
     const sortReportedAt = sortingTime(part.sortReportedAt, '分拣报工时间');
     if (sortStartedAt && sortReportedAt && sortReportedAt < sortStartedAt) throw new Error('分拣报工时间不能早于开工时间');
-    return {...part, flow, workOrderNo: workOrderNo.trim(), sortStartedAt, sortReportedAt};
+    const {nestingName, ...fields} = part;
+    const normalized = {...fields, flow, workOrderNo: workOrderNo.trim(), sortStartedAt, sortReportedAt};
+    if (typeof nestingName === 'string' && nestingName.trim()) normalized.nestingName = nestingName.trim();
+    return normalized;
   }
   function cuttingJob(current) {
     if (!current || typeof current.taskId !== 'string' || !current.taskId.trim()) throw new Error('请输入零件的唯一任务编号');
@@ -339,6 +342,7 @@
             id: `P${p + 1}-${String(i + 1).padStart(4, '0')}`,
             packageId: p < 2 ? 'CP-20260917-01' : 'CP-20260917-02',
             workOrderNo: p < 2 ? 'WO-20261116-01' : 'WO-20261116-02',
+            nestingName: p < 2 ? 'NEST-DEMO-01' : 'NEST-DEMO-02',
             flow: `X_H${[1, 2, 3, 2][p]}M${i % 3 + 1}`,
             marks: [['混套'], ['余料'], ['混套', '余料'], []][i % 4],
             ship: i % 5 === 4 ? 'N1131' : 'N1130',
