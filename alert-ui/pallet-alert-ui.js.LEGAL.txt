@@ -1,0 +1,47 @@
+Bundled license information:
+
+@vue/shared/dist/shared.esm-bundler.js:
+  /**
+  * @vue/shared v3.5.24
+  * (c) 2018-present Yuxi (Evan) You and Vue contributors
+  * @license MIT
+  **/
+
+@vue/reactivity/dist/reactivity.esm-bundler.js:
+  /**
+  * @vue/reactivity v3.5.24
+  * (c) 2018-present Yuxi (Evan) You and Vue contributors
+  * @license MIT
+  **/
+
+@vue/runtime-core/dist/runtime-core.esm-bundler.js:
+  /**
+  * @vue/runtime-core v3.5.24
+  * (c) 2018-present Yuxi (Evan) You and Vue contributors
+  * @license MIT
+  **/
+
+@vue/runtime-dom/dist/runtime-dom.esm-bundler.js:
+  /**
+  * @vue/runtime-dom v3.5.24
+  * (c) 2018-present Yuxi (Evan) You and Vue contributors
+  * @license MIT
+  **/
+
+vue/dist/vue.runtime.esm-bundler.js:
+  /**
+  * vue v3.5.24
+  * (c) 2018-present Yuxi (Evan) You and Vue contributors
+  * @license MIT
+  **/
+
+lodash-es/lodash.js:
+  /**
+   * @license
+   * Lodash (Custom Build) <https://lodash.com/>
+   * Build: `lodash modularize exports="es" --repo lodash/lodash#4.18.1 -o ./`
+   * Copyright OpenJS Foundation and other contributors <https://openjsf.org/>
+   * Released under MIT license <https://lodash.com/license>
+   * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+   * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+   */

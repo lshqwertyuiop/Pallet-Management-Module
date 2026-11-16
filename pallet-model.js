@@ -7,6 +7,7 @@
   const copy = value => JSON.parse(JSON.stringify(value));
   const names = ['短托盘01', '短托盘02', '长托盘01', '长托盘02'];
   const defaultCountLimits = {short: 24, long: 8};
+  const defaultWarningPercent = 90;
   const longPalletFrom = 3000;
   const allowedPartMarks = ['混套', '余料'];
   const nonnegative = n => typeof n === 'number' && Number.isFinite(n) && n >= 0;
@@ -15,19 +16,26 @@
     const match = text.match(/(?:^|_)(H\d+)(?:M\d+)?$/i);
     return match ? match[1].toUpperCase() : text;
   }
-  function checkedLimits(limits) {
+  function checkedLimits(limits, currentLimits) {
     const result = {};
     for (const type of ['short', 'long']) {
       const limit = limits?.[type];
       if (!limit || !Number.isSafeInteger(limit.count) || limit.count <= 0) throw new Error('数量上限必须为正整数');
       if (!nonnegative(limit.weight) || limit.weight <= 0) throw new Error('重量上限必须为大于 0 的有效数值');
-      result[type] = {count: limit.count, weight: limit.weight};
+      const warningPercent = limit.warningPercent === undefined
+        ? currentLimits?.[type].warningPercent ?? defaultWarningPercent
+        : limit.warningPercent;
+      if (!nonnegative(warningPercent) || warningPercent <= 0 || warningPercent > 100) {
+        throw new Error('预警比例必须大于 0 且不超过 100');
+      }
+      result[type] = {count: limit.count, weight: limit.weight, warningPercent};
     }
     return result;
   }
   function validatePart(part) {
     if (!part || !['id', 'flow', 'ship', 'section', 'program', 'profile', 'material'].every(k => typeof part[k] === 'string' && part[k].length > 0) || !nonnegative(part.length)) throw new Error('零件数据不完整');
     if (part.marks !== undefined && (!Array.isArray(part.marks) || part.marks.some(mark => !allowedPartMarks.includes(mark)) || new Set(part.marks).size !== part.marks.length)) throw new Error('零件标记只支持混套、余料，每项最多出现一次');
+    if (part.weight != null && !nonnegative(part.weight)) throw new Error('零件重量必须为非负有效数值');
   }
   function sortingTime(value, label) {
     if (value === undefined || value === null || value === '') return '';
@@ -84,6 +92,7 @@
         if (new Set(p.parts.map(part => part.id)).size !== p.parts.length) throw new Error('同一托盘的零件编号不能重复');
         if (this.pallets.some(other => other !== p && other.number === p.number)) throw new Error('在用托盘编号不能重复');
         p.physicalReasons = Array.isArray(p.physicalReasons) ? p.physicalReasons.filter(r => ['数量达到上限', '重量达到上限'].includes(r)) : [];
+        p.clearedAlarmReasons = Array.isArray(p.clearedAlarmReasons) ? p.clearedAlarmReasons : [];
         p.allowMixedFlow = p.allowMixedFlow === true;
         p.allowance = p.allowance === 1 ? 1 : 0;
         p.pending = p.pending || null;
@@ -105,9 +114,10 @@
       if (p.weight >= limit.weight && !p.physicalReasons.includes('重量达到上限')) p.physicalReasons.push('重量达到上限');
       const packages = [...new Set(p.parts.map(part => part.packageId))].filter(id => this.completedPackages.has(id));
       const previousReasons = p.reasons || [];
-      p.reasons = [...p.physicalReasons, ...packages.map(id => `切割包 ${id} 已切完`)];
+      const reasons = [...p.physicalReasons, ...packages.map(id => `切割包 ${id} 已切完`)];
       // Only the demo snapshot supplies this simulated sorting condition.
-      if (p.demoFlowFull === true && !p.allowMixedFlow) p.reasons.push('流向满盘');
+      if (p.demoFlowFull === true && !p.allowMixedFlow) reasons.push('流向满盘');
+      p.reasons = reasons.filter(reason => !p.clearedAlarmReasons.includes(reason));
       p.latched = p.reasons.length > 0;
       p.fullAlarmAcknowledged = p.latched && p.fullAlarmAcknowledged === true &&
         p.reasons.every(reason => previousReasons.includes(reason));
@@ -115,7 +125,7 @@
     }
     acceptsLength(p, length) { return p.type === (length < longPalletFrom ? 'short' : 'long'); }
     configure(limits) {
-      this.limits = checkedLimits(limits);
+      this.limits = checkedLimits(limits, this.limits);
       this.pallets.forEach(p => this.evaluate(p));
     }
     completePackage(packageId) {
@@ -187,13 +197,16 @@
       part = checkedPart(part);
       this.validateMeasurement(p, measurement);
       if (p.pending.flow && flowCode(part.flow) !== p.pending.flow) throw new Error('入盘零件流向与放行任务不一致');
-      const assignment = this.assignments.get(p.pending.requestId);
+      const taskId = p.pending.requestId;
+      const assignment = this.assignments.get(taskId);
       if (assignment && part.id !== assignment.part.id) throw new Error('入盘零件编号与托盘分配不一致');
       if (p.parts.some(existing => existing.id === part.id)) throw new Error('零件已在盘内');
       const wasExtra = p.pending.extra;
+      const job = assignment || this.cuttingProfile?.parts.find(item => item.taskId === taskId);
       const nextPart = checkedPart({
         ...copy(part),
-        taskId: p.pending.requestId,
+        taskId,
+        weight: part.weight ?? (job?.part.id === part.id ? job.weight : undefined),
         sortStartedAt: part.sortStartedAt || p.pending.sortStartedAt,
         sortReportedAt: part.sortReportedAt || new Date().toISOString()
       });
@@ -278,6 +291,14 @@
       }
       this.assignments = next;
     }
+    resetAlarm(id) {
+      const p = this.get(id);
+      if (p.pending) throw new Error('入盘任务尚未完成，请完成后再复位');
+      if (!p.latched) throw new Error('当前托盘没有待复位的满盘状态');
+      p.clearedAlarmReasons.push(...p.reasons);
+      p.allowance = 0;
+      this.evaluate(p);
+    }
     reset(id, number, {reuseNumber = false} = {}) {
       const p = this.get(id);
       if (p.pending) throw new Error('入盘任务尚未完成，请完成后再复位');
@@ -294,23 +315,25 @@
         if (assignment.palletId === id) this.assignments.delete(taskId);
       }
       p.cycle++; p.revision = 0; p.parts = []; p.weight = 0;
-      p.number = number; p.physicalReasons = []; p.allowMixedFlow = false;
+      p.number = number; p.physicalReasons = []; p.clearedAlarmReasons = []; p.allowMixedFlow = false;
       delete p.demoFlowFull;
       p.latched = false; p.reasons = []; p.allowance = 0; p.fullAlarmAcknowledged = false; p.status = '正常';
     }
     snapshot() { return copy({version: 2, limits: this.limits, pallets: this.pallets, history: this.history, completedPackages: [...this.completedPackages], sequence: this.sequence, cuttingProfile: this.cuttingProfile, assignments: [...this.assignments]}); }
   }
   function demoSnapshot() {
+    const counts = [18, 24, 6, 5];
+    const weights = [1380, 1260, 3150, 920];
     return {
       version: 2,
       limits: {
-        short: {count: defaultCountLimits.short, weight: 1500},
-        long: {count: defaultCountLimits.long, weight: 3000}
+        short: {count: defaultCountLimits.short, weight: 1500, warningPercent: defaultWarningPercent},
+        long: {count: defaultCountLimits.long, weight: 3000, warningPercent: defaultWarningPercent}
       },
       pallets: names.map((name, p) => ({
         id: ['S01', 'S02', 'L01', 'L02'][p], name, type: p < 2 ? 'short' : 'long', number: `TP-${['S01', 'S02', 'L01', 'L02'][p]}`,
-        cycle: 1, revision: 1, weight: [860, 1260, 3150, 920][p], demoFlowFull: p === 3,
-        parts: Array.from({length: [18, 24, 6, 5][p]}, (_, i) => {
+        cycle: 1, revision: 1, weight: weights[p], demoFlowFull: p === 3,
+        parts: Array.from({length: counts[p]}, (_, i) => {
           const startedAt = Date.UTC(2026, 10, 16, 1, p * 6 + i * 2);
           return {
             id: `P${p + 1}-${String(i + 1).padStart(4, '0')}`,
@@ -324,6 +347,7 @@
             profile: ['HP 120×7', 'HP 140×8', 'L 100×63×8'][i % 3],
             material: i % 3 === 2 ? 'AH36' : 'DH36',
             length: p < 2 ? 850 + i * 117.5 : 4250 + i * 215.5,
+            weight: Math.round(weights[p] * (i + 1) / counts[p]) - Math.round(weights[p] * i / counts[p]),
             sortStartedAt: new Date(startedAt).toISOString(),
             sortReportedAt: new Date(startedAt + 75_000).toISOString()
           };
