@@ -10,17 +10,16 @@
   });
   const formatSortTime = value => value ? sortTimeFormatter.format(new Date(value)) : '';
   let store = new PalletModel.Store(PalletModel.demoSnapshot());
-  let external = false;
   let palletIndex = 0, page = 1, pageSize = 10, sort = 0, historyIndex = -1;
   let filteredHistory = [];
   let filters = {keyword: '', flow: '', ship: '', mark: ''}, resetTarget = null;
   const pallet = () => store.pallets[palletIndex];
   let toastTimer;
   function toast(message) { $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').hidden = true, 5000); }
-  function mutate(change, source = external) {
+  function mutate(change) {
     const next = new PalletModel.Store(store.snapshot());
     const result = change(next);
-    store = next; external = source; renderAll(); return result;
+    store = next; renderAll(); return result;
   }
   function attempt(action) { try { action(); } catch (error) { toast(error.message); } }
   const statusHTML = p => {
@@ -64,7 +63,6 @@
     const p = pallet();
     $('detail-id').textContent = `托盘编号：${p.number}`; $('detail-status').innerHTML = statusHTML(p);
     $('detail-heading').textContent = `${p.name} · 盘内零件`;
-    $('open-manual').hidden = !$('history-panel').hidden;
   }
   function fillOptions(id, key) {
     const value = $(id).value;
@@ -141,7 +139,6 @@
     $('history-title').textContent = record ? `${record.name} · ${record.number}` : '历史盘内零件';
     $('history-caption').textContent = record ? `装载批次 ${record.cycle} · ${record.parts.length} 件 · 归档原因：${record.reasons.join('；') || '手工吊装换盘'}` : '选择历史托盘查看其全部零件';
     $('history-rows').innerHTML = record && record.parts.length ? partRows(record.parts, 0, true) : emptyRow(record ? '该历史托盘无零件' : '暂无历史明细', '历史明细与当前托盘分开保存。', 12);
-    $('export-history').disabled = !record?.parts.length;
   }
   function renderAll() {
     renderPallets();
@@ -150,7 +147,6 @@
     renderRows();
     renderHistory();
     alerts?.update(store.pallets, store.limits);
-    if ($('manual-dialog').open && !manualEditing) renderManualAssignments();
   }
   function showView(history) {
     $('current-panel').hidden = history; $('history-panel').hidden = !history;
@@ -158,7 +154,6 @@
       const selected = (id === 'history-tab') === history;
       $(id).classList.toggle('active', selected); $(id).setAttribute('aria-selected', String(selected)); $(id).tabIndex = selected ? 0 : -1;
     }
-    $('open-manual').hidden = history;
   }
   function focusPallet(id) {
     showView(false);
@@ -205,125 +200,21 @@
   });
   $('history-list').addEventListener('click', e => { const button = e.target.closest('[data-history]'); if (button) { historyIndex = Number(button.dataset.history); renderHistory(); } });
   document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => $(button.dataset.close).close()));
-  let manualEditing = false;
-  let manualProfileId = null;
-  let manualTargetCycles = new Map();
-  function renderManualAssignments() {
-    const current = store.cuttingProfile;
-    manualProfileId = current?.id;
-    manualTargetCycles = new Map(store.pallets.map(p => [p.id, p.cycle]));
-    $('manual-profile').textContent = current ? `型材 ${current.id} · ${current.profile} · ${current.parts.length} 件零件` : '当前暂无切割型材。';
-    const rows = current?.parts || [];
-    $('manual-demo').hidden = !!current || external;
-    $('manual-list').hidden = !rows.length;
-    let hasEditableRows = false;
-    $('manual-rows').innerHTML = rows.map(job => {
-      const part = job.part;
-      const assignment = store.assignments.get(job.taskId);
-      const pending = store.pallets.find(p => p.pending?.requestId === job.taskId);
-      const received = [...store.pallets, ...store.history].find(p => p.parts.some(palletPart => palletPart.taskId === job.taskId));
-      const planned = store.assignedTarget(job.taskId);
-      const target = received || pending || (planned ? store.get(planned.palletId) : null);
-      const targetText = target ? escapeHTML(`${target.name}（${target.number}）`) : '未分配';
-      const sortingState = received ? '分拣完成' : pending ? '分拣中' : '未开始';
-      const stateClass = received ? 'received' : pending ? 'active' : 'waiting';
-      let targetCell = targetText;
-      if (!pending && !received) {
-        hasEditableRows = true;
-        if (manualEditing) {
-          const options = store.pallets.filter(p => store.acceptsLength(p, part.length)).map(p => {
-            const issue = store.assignmentIssue(p, job);
-            const status = issue || (p.latched ? '可用单件放行' : '');
-            const selection = target?.id === p.id ? ' selected' : issue ? ' disabled' : '';
-            return `<option value="${escapeHTML(p.id)}"${selection}>${escapeHTML(`${p.name}（${p.number}）${status ? ' · ' + status : ''}`)}</option>`;
-          }).join('');
-          const placeholder = target ? '' : '<option value="">未分配</option>';
-          const clear = assignment ? '<option value="clear">取消手工分配</option>' : '';
-          targetCell = `<select data-assignment-task="${escapeHTML(job.taskId)}" data-original-target="${escapeHTML(target?.id || '')}" aria-label="零件 ${escapeHTML(part.id)} 的目标托盘">${placeholder}${options}${clear}</select>`;
-        }
-      }
-      return `<tr><td class="part-id">${escapeHTML(part.id)}</td><td>${escapeHTML(part.workOrderNo)}</td><td>${escapeHTML(part.flow)}</td><td>${partMarkTags(part)}</td><td class="numeric">${format(part.length)}</td><td class="numeric">${format(job.weight)}</td><td><span class="sorting-state ${stateClass}">${sortingState}</span></td><td>${targetCell}</td></tr>`;
-    }).join('');
-    $('manual-edit').checked = manualEditing;
-    $('manual-edit').disabled = !hasEditableRows;
-    $('manual-confirm').hidden = !manualEditing;
-    $('manual-hint').hidden = !manualEditing;
-    $('manual-error').textContent = '';
-  }
-  $('open-manual').addEventListener('click', () => {
-    manualEditing = false;
-    renderManualAssignments();
-    $('manual-dialog').showModal();
-  });
-  $('manual-edit').addEventListener('change', e => {
-    manualEditing = e.target.checked;
-    renderManualAssignments();
-  });
-  function finishManualEditing() {
-    manualEditing = false;
-    renderManualAssignments();
-    $('manual-edit').focus();
-  }
-  $('manual-demo').addEventListener('click', () => {
-    try {
-      if (external) throw new Error('请等待系统提供当前切割型材');
-      mutate(s => {
-        const id = `XC-${Date.now()}`;
-        const parts = [];
-        const landed = [...s.pallets, ...s.history].find(p => p.parts.length)?.parts[0];
-        if (landed) {
-          landed.taskId ||= `${id}-落盘`;
-          parts.push({taskId: landed.taskId, part: landed, weight: landed.weight ?? 35});
-        }
-        const activePallet = s.get('L01');
-        if (!activePallet.pending) {
-          const taskId = `${id}-PLC`;
-          const flow = activePallet.parts[0]?.flow || 'X_H3M1';
-          const part = demoPart(taskId, flow, 3600, 'PY');
-          if (activePallet.latched && !activePallet.allowance) s.grantOne(activePallet.id);
-          s.reservePart(activePallet.id, taskId, flow);
-          parts.push({taskId, part, weight: 70, targetPalletId: activePallet.id});
-        }
-        for (const [label, length, program, weight] of [['03', 1250, 'PZ', 45], ['04', 3000, 'PJ', 60]]) {
-          const taskId = `${id}-${label}`;
-          const job = {taskId, part: demoPart(taskId, 'X_H1M2', length, program), weight};
-          const target = s.pallets.find(p => !s.assignmentIssue(p, job));
-          if (target) job.targetPalletId = target.id;
-          parts.push(job);
-        }
-        s.setCuttingProfile({id, profile: 'HP 120×7', parts});
-      });
-    } catch (error) { $('manual-error').textContent = error.message; }
-  });
-  $('manual-form').addEventListener('submit', e => {
-    e.preventDefault();
-    if (!manualEditing) return;
-    try {
-      const choices = [...$('manual-rows').querySelectorAll('select[data-assignment-task]')]
-        .filter(select => select.value && select.value !== select.dataset.originalTarget)
-        .map(select => ({
-          taskId: select.dataset.assignmentTask,
-          palletId: select.value === 'clear' ? '' : select.value,
-          cycle: manualTargetCycles.get(select.value)
-        }));
-      if (choices.length) mutate(s => s.assignPallets(manualProfileId, choices));
-      finishManualEditing();
-      if (choices.length) toast('托盘分配已保存');
-    } catch (error) {
-      $('manual-error').textContent = error.message;
-    }
-  });
   $('open-settings').addEventListener('click', () => {
     for (const type of ['short', 'long']) {
       $(`${type}-count`).value = store.limits[type].count;
       $(`${type}-weight`).value = store.limits[type].weight;
       $(`${type}-warning`).value = store.limits[type].warningPercent;
     }
+    $('allocation-coarse').checked = store.allocationMode === 'coarse';
+    $('allocation-fine').checked = store.allocationMode === 'fine';
     $('settings-error').textContent = ''; $('settings-dialog').showModal();
   });
   $('settings-form').addEventListener('submit', e => {
     e.preventDefault();
     try {
+      const allocationMode = ['coarse', 'fine'].find(mode => $(`allocation-${mode}`).checked);
+      if (!allocationMode) throw new Error('请选择粗分或细分');
       const limits = {};
       for (const type of ['short', 'long']) {
         limits[type] = {
@@ -332,9 +223,9 @@
           warningPercent: Number($(`${type}-warning`).value)
         };
       }
-      mutate(s => s.configure(limits));
+      mutate(s => s.configure(limits, allocationMode));
       $('settings-dialog').close();
-      toast('托盘上限和预警比例已更新');
+      toast('托盘配置已保存');
     } catch (error) { $('settings-error').textContent = error.message; }
   });
   function openReset(id) {
@@ -355,7 +246,7 @@
     $('new-number').required = !resume;
     $('reset-note').textContent = resume
       ? '原托盘恢复收件，保留托盘编号和盘内零件，数量和重量继续累计。'
-      : '吊走原托盘并放入空托盘后，核对托盘编号。可沿用默认编号或修改。确认后归档原盘明细，清空当前零件列表，数量和重量归零。';
+      : '吊装完成后，请核对托盘编号。默认沿用上次编号，可修改。确认后归档原盘明细，清空当前零件列表，数量和重量归零。';
     $('reset-confirm').textContent = resume ? '确认复位' : '确认换盘';
     $('reset-error').textContent = '';
   }
@@ -378,10 +269,7 @@
       toast(resume ? '满盘报警已解除，原托盘已恢复收件' : '原托盘已归档，空托盘已启用');
     } catch (error) { $('reset-error').textContent = error.message; }
   });
-  function demoPart(id, flow, length, program) {
-    return {id, workOrderNo: 'WO-20261116-03', nestingName: 'NEST-DEMO-03', flow, marks: [], ship: 'N1130', section: 'FC2P', program, profile: 'HP 120×7', material: 'DH36', length};
-  }
-  function exportHistoryCSV(records, filename) {
+  function exportHistoryCSV(records) {
     const header = ['托盘位置', '托盘编号', '装载批次', '状态', '累计数量(件)', '累计重量(kg)', '归档时间', '序号', '零件编号', '工单号', '套料名称', '流向', '标记', '规格', '材质', '长度 / mm', '重量 / kg', '分拣开工时间', '分拣报工时间'];
     const details = records.flatMap(p => p.parts.map((part, index) =>
       [p.name, p.number, p.cycle, p.status, p.parts.length, p.weight, p.completedAt || '',
@@ -392,25 +280,21 @@
     const cell = value => { let text = String(value); if (/^[=+@\-\t\r\n]/.test(text)) text = "'" + text; return '"' + text.replace(/"/g, '""') + '"'; };
     const blob = new Blob(['\ufeff' + [header, ...details].map(row => row.map(cell).join(',')).join('\r\n')], {type: 'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url;
-    a.download = filename;
+    a.download = '历史托盘_零件明细.csv';
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); toast(`已导出 ${details.length} 件零件明细`);
   }
-  $('export-filtered-history').addEventListener('click', () => exportHistoryCSV(filteredHistory, '历史托盘_零件明细.csv'));
-  $('export-history').addEventListener('click', () => {
-    const p = store.history[historyIndex];
-    if (p) exportHistoryCSV([p], `${p.name}_${p.number.replace(/[<>:"/\\|?*]/g, '_')}_批次${p.cycle}_历史明细.csv`);
-  });
+  $('export-filtered-history').addEventListener('click', () => exportHistoryCSV(filteredHistory));
   // Local prototype API only. Production authorization and persistence belong on the host service.
   window.PalletManagement = Object.freeze({
     getState: () => store.snapshot(),
     getDemoSnapshot: () => PalletModel.demoSnapshot(),
-    setCurrentPart: current => mutate(s => s.setCurrentPart(current), true),
-    setCuttingProfile: current => mutate(s => s.setCuttingProfile(current), true),
+    setCurrentPart: current => mutate(s => s.setCurrentPart(current)),
+    setCuttingProfile: current => mutate(s => s.setCuttingProfile(current)),
     getAssignedPallet: taskId => store.assignedTarget(taskId),
-    updateMeasurements: (id, data) => mutate(s => s.updateMeasurements(id, data), true),
-    completePackage: id => mutate(s => s.completePackage(id), true),
-    reservePart: (id, taskId, flow, sortStartedAt) => mutate(s => s.reservePart(id, taskId, flow, sortStartedAt), true),
-    receivePart: (id, token, part, data) => mutate(s => s.receivePart(id, token, part, data), true)
+    updateMeasurements: (id, data) => mutate(s => s.updateMeasurements(id, data)),
+    completePackage: id => mutate(s => s.completePackage(id)),
+    reservePart: (id, taskId, flow, sortStartedAt) => mutate(s => s.reservePart(id, taskId, flow, sortStartedAt)),
+    receivePart: (id, token, part, data) => mutate(s => s.receivePart(id, token, part, data))
   });
   const alerts = window.PalletAlerts?.mount($('pallet-alerts'), {onNavigate: focusPallet});
   resetFilters(); renderAll();

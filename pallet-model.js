@@ -8,6 +8,7 @@
   const names = ['短托盘01', '短托盘02', '长托盘01', '长托盘02'];
   const defaultCountLimits = {short: 24, long: 8};
   const defaultWarningPercent = 90;
+  const defaultAllocationMode = 'fine';
   const longPalletFrom = 3000;
   const allowedPartMarks = ['混套', '余料'];
   const nonnegative = n => typeof n === 'number' && Number.isFinite(n) && n >= 0;
@@ -31,6 +32,10 @@
       result[type] = {count: limit.count, weight: limit.weight, warningPercent};
     }
     return result;
+  }
+  function checkedAllocationMode(mode = defaultAllocationMode) {
+    if (mode !== 'coarse' && mode !== 'fine') throw new Error('请选择粗分或细分');
+    return mode;
   }
   function validatePart(part) {
     if (!part || !['id', 'flow', 'ship', 'section', 'program', 'profile', 'material'].every(k => typeof part[k] === 'string' && part[k].length > 0) || !nonnegative(part.length)) throw new Error('零件数据不完整');
@@ -79,6 +84,7 @@
       }
       if (!Array.isArray(snapshot.pallets) || snapshot.pallets.length !== 4) throw new Error('必须提供四个托盘');
       this.limits = checkedLimits(snapshot.limits);
+      this.allocationMode = checkedAllocationMode(snapshot.allocationMode);
       this.pallets = copy(snapshot.pallets);
       this.history = copy(snapshot.history || []);
       for (const record of this.history) record.parts = record.parts.map(checkedPart);
@@ -127,8 +133,10 @@
       p.status = p.fullAlarmAcknowledged ? '待换盘' : p.latched ? '满盘' : '正常';
     }
     acceptsLength(p, length) { return p.type === (length < longPalletFrom ? 'short' : 'long'); }
-    configure(limits) {
+    configure(limits, allocationMode = this.allocationMode) {
+      const mode = checkedAllocationMode(allocationMode);
       this.limits = checkedLimits(limits, this.limits);
+      this.allocationMode = mode;
       this.pallets.forEach(p => this.evaluate(p));
     }
     completePackage(packageId) {
@@ -322,13 +330,14 @@
       delete p.demoFlowFull;
       p.latched = false; p.reasons = []; p.allowance = 0; p.fullAlarmAcknowledged = false; p.status = '正常';
     }
-    snapshot() { return copy({version: 2, limits: this.limits, pallets: this.pallets, history: this.history, completedPackages: [...this.completedPackages], sequence: this.sequence, cuttingProfile: this.cuttingProfile, assignments: [...this.assignments]}); }
+    snapshot() { return copy({version: 2, limits: this.limits, allocationMode: this.allocationMode, pallets: this.pallets, history: this.history, completedPackages: [...this.completedPackages], sequence: this.sequence, cuttingProfile: this.cuttingProfile, assignments: [...this.assignments]}); }
   }
   function demoSnapshot() {
     const counts = [18, 24, 6, 5];
     const weights = [1380, 1260, 3150, 920];
     return {
       version: 2,
+      allocationMode: defaultAllocationMode,
       limits: {
         short: {count: defaultCountLimits.short, weight: 1500, warningPercent: defaultWarningPercent},
         long: {count: defaultCountLimits.long, weight: 3000, warningPercent: defaultWarningPercent}

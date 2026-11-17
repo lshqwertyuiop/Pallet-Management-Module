@@ -23,7 +23,7 @@
 </header>
 <nav class="sub-nav" aria-label="生产加工导航"><span class="sub-item"><svg  viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="m10.967 8.797 3.242-2.593a1.238 1.238 0 1 0-1.74-1.74L9.876 7.707l1.091 1.091Zm3.866-1.812-3.883 3.107.217.217a.5.5 0 0 1-.13.8l-.709.355a.5.5 0 0 1-.577-.093l-.571-.572-.207.207a.876.876 0 1 1-1.239-1.239l.207-.206-.571-.571a.5.5 0 0 1-.094-.578l.355-.709a.5.5 0 0 1 .8-.13l.15.15 3.107-3.883a2.238 2.238 0 1 1 3.145 3.145ZM2.5 19.013a.5.5 0 0 0 0 1h19a.5.5 0 0 0 0-1h-.95l-.56-2.799a3.05 3.05 0 0 0-.274-.79c.18-.292.312-.62.381-.978l1.112-5.701a2.512 2.512 0 0 0-.925-2.465 2.326 2.326 0 0 0-.622-.44L14.846 3.5a2.225 2.225 0 0 1 .816 1.508l3.563 1.731A1.328 1.328 0 1 1 17.9 9.033L14.852 6.97l-.018.015-.8.64L17.34 9.86a2.329 2.329 0 0 0 2.635-.016l-.859 4.41c-.02.1-.046.195-.08.287a3.045 3.045 0 0 0-3.683-.297 1.904 1.904 0 0 1 .071-.98l1.311-3.812-.858-.58-1.398 4.067a2.902 2.902 0 0 0 .064 2.066c-.258.35-.443.76-.533 1.208l-.56 2.799H13V17a2 2 0 0 0-2-2H5.5a2 2 0 0 0-2 2v2.013h-1Zm17.03 0-.52-2.603a2.05 2.05 0 0 0-4.02 0l-.52 2.603h5.06ZM4.5 17a1 1 0 0 1 1-1H11a1 1 0 0 1 1 1v2H4.5v-2Z" /></svg><span>加工控制</span></span><span class="sub-item active" aria-current="page"><svg  viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1ZM3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5Zm4 2a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm0 4a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm-1 5a1 1 0 1 1 2 0 1 1 0 0 1-2 0Zm4.5-4.5a.5.5 0 0 0 0 1h7a.5.5 0 0 0 0-1h-7ZM10 8a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7A.5.5 0 0 1 10 8Zm.5 7.5a.5.5 0 0 0 0 1h7a.5.5 0 0 0 0-1h-7Z" /></svg><span>托盘管理</span></span></nav>
 <main>
-  <div class="page-heading"><div><h1>托盘管理</h1></div><div class="data-state"><button class="btn primary" id="open-manual">分配托盘</button><button class="btn" id="open-settings">上限配置</button></div></div>
+  <div class="page-heading"><div><h1>托盘管理</h1></div><div class="data-state"><button class="btn" id="open-settings">托盘配置</button></div></div>
   <div class="station-bar"><div class="tabs" role="tablist" aria-label="托盘视图"><button class="tab active" id="current-tab" role="tab" aria-selected="true" aria-controls="current-panel">当前托盘</button><button class="tab" id="history-tab" role="tab" aria-selected="false" aria-controls="history-panel" tabindex="-1">历史托盘 <span class="tab-count" id="history-count">0</span></button></div><div class="station-summary" id="pallet-summary" role="status"></div></div>
   <section role="tabpanel" aria-labelledby="current-tab" id="current-panel"><div class="pallet-grid" id="pallet-grid" aria-label="托盘列表"></div>
   <dialog id="detail-dialog" aria-labelledby="detail-heading"><section class="detail-panel" aria-labelledby="detail-heading">
@@ -38,62 +38,44 @@
     <button class="btn" id="clear-history-dates" type="button">清除日期</button>
     <span class="subtitle" id="history-date-status" role="status"></span>
     <button class="btn" id="export-filtered-history" type="button" disabled>导出明细</button>
-  </div><div class="history-layout"><div class="history-list" id="history-list"></div><div class="detail-panel"><div class="detail-heading"><div><h2 id="history-title">历史盘内零件</h2><p class="detail-caption" id="history-caption"></p></div><button class="btn" id="export-history" disabled>导出历史明细</button></div><div class="table-wrap"><table aria-label="历史托盘零件明细"><thead><tr><th>序号</th><th>零件编号</th><th>工单号</th><th>套料名称</th><th>流向</th><th class="mark">标记</th><th>规格</th><th>材质</th><th class="numeric">长度 / mm</th><th class="numeric">重量 / kg</th><th>分拣开工时间</th><th>分拣报工时间</th></tr></thead><tbody id="history-rows"></tbody></table></div></div></div></section>
+  </div><div class="history-layout"><div class="history-list" id="history-list"></div><div class="detail-panel"><div class="detail-heading"><div><h2 id="history-title">历史盘内零件</h2><p class="detail-caption" id="history-caption"></p></div></div><div class="table-wrap"><table aria-label="历史托盘零件明细"><thead><tr><th>序号</th><th>零件编号</th><th>工单号</th><th>套料名称</th><th>流向</th><th class="mark">标记</th><th>规格</th><th>材质</th><th class="numeric">长度 / mm</th><th class="numeric">重量 / kg</th><th>分拣开工时间</th><th>分拣报工时间</th></tr></thead><tbody id="history-rows"></tbody></table></div></div></div></section>
 </main>
 <div class="toast" id="toast" role="status" hidden></div>
 <dialog id="settings-dialog" aria-labelledby="settings-title">
   <form id="settings-form">
-    <div class="dialog-heading"><h2 id="settings-title">托盘上限与预警配置</h2><button type="button" class="dialog-close" data-close="settings-dialog" aria-label="关闭上限配置">×</button></div>
-    <p class="dialog-note">同组两个托盘共用配置。预警比例须大于 0% 且不超过 100%。数量或重量达到预警比例时提示，达到上限时显示满盘异常。</p>
-    <div class="limit-group">
-      <h3>短托盘 <small>短托盘01 / 短托盘02</small></h3>
-      <label class="field">数量上限 / 件<input id="short-count" type="number" min="1" step="1" required></label>
-      <label class="field">重量上限 / kg<input id="short-weight" type="number" min="0.1" step="0.1" required></label>
-      <label class="field">预警比例 / %<input id="short-warning" type="number" min="0" max="100" step="any" required></label>
-    </div>
-    <div class="limit-group">
-      <h3>长托盘 <small>长托盘01 / 长托盘02</small></h3>
-      <label class="field">数量上限 / 件<input id="long-count" type="number" min="1" step="1" required></label>
-      <label class="field">重量上限 / kg<input id="long-weight" type="number" min="0.1" step="0.1" required></label>
-      <label class="field">预警比例 / %<input id="long-warning" type="number" min="0" max="100" step="any" required></label>
-    </div>
+    <div class="dialog-heading"><h2 id="settings-title">托盘配置</h2><button type="button" class="dialog-close" data-close="settings-dialog" aria-label="关闭托盘配置">×</button></div>
+    <section aria-labelledby="pallet-limits-title">
+      <h3 id="pallet-limits-title">满盘上限配置</h3>
+      <p class="dialog-note">同组两个托盘共用配置。数量或重量达到预警比例时提示，达到上限时显示满盘异常。</p>
+      <div class="limit-group">
+        <h4>短托盘 <small>短托盘01 / 短托盘02</small></h4>
+        <label class="field">数量上限 / 件<input id="short-count" type="number" min="1" step="1" required></label>
+        <label class="field">重量上限 / kg<input id="short-weight" type="number" min="0.1" step="0.1" required></label>
+        <label class="field">预警比例 / %<input id="short-warning" type="number" min="0" max="100" step="any" required></label>
+      </div>
+      <div class="limit-group">
+        <h4>长托盘 <small>长托盘01 / 长托盘02</small></h4>
+        <label class="field">数量上限 / 件<input id="long-count" type="number" min="1" step="1" required></label>
+        <label class="field">重量上限 / kg<input id="long-weight" type="number" min="0.1" step="0.1" required></label>
+        <label class="field">预警比例 / %<input id="long-warning" type="number" min="0" max="100" step="any" required></label>
+      </div>
+    </section>
+    <fieldset class="pallet-choices allocation-options">
+      <legend>分配规则</legend>
+      <label><input type="radio" name="allocation-mode" id="allocation-coarse" value="coarse" required> 粗分 <small>按大类归组，如 H</small></label>
+      <label><input type="radio" name="allocation-mode" id="allocation-fine" value="fine" required> 细分 <small>按小类归组，如 H1、H2</small></label>
+    </fieldset>
     <p class="form-error" id="settings-error" role="alert"></p>
     <div class="dialog-actions"><button type="button" class="btn" data-close="settings-dialog">取消</button><button class="btn primary" type="submit">保存配置</button></div>
   </form>
 </dialog>
-<dialog id="reset-dialog" aria-labelledby="reset-title"><form id="reset-form"><div class="dialog-heading"><h2 id="reset-title">满盘复位</h2><button type="button" class="dialog-close" data-close="reset-dialog" aria-label="关闭满盘复位">×</button></div><p class="dialog-note" id="reset-context"></p><fieldset class="reset-options">
+<dialog id="reset-dialog" aria-labelledby="reset-title"><form id="reset-form"><div class="dialog-heading"><h2 id="reset-title">满盘复位</h2><button type="button" class="dialog-close" data-close="reset-dialog" aria-label="关闭满盘复位">×</button></div><p class="dialog-note" id="reset-context"></p><fieldset class="pallet-choices">
   <legend>选择操作</legend>
   <label><input type="radio" name="reset-mode" id="reset-alarm" value="alarm"> 解除报警，继续收件</label>
-  <label><input type="radio" name="reset-mode" id="reset-replace" value="replace"> 吊装换盘</label>
+  <label><input type="radio" name="reset-mode" id="reset-replace" value="replace"> 吊装换盘，清空零件</label>
 </fieldset>
 <label class="field reset-number" id="reset-number-field">新托盘编号<input id="new-number" placeholder="输入放入的空托盘编号" maxlength="60" required autocomplete="off"></label>
 <p class="dialog-note" id="reset-note"></p><p class="form-error" id="reset-error" role="alert"></p><div class="dialog-actions"><button type="button" class="btn" data-close="reset-dialog">取消</button><button class="btn primary" id="reset-confirm" type="submit">确认复位</button></div></form></dialog>
-<dialog id="manual-dialog" aria-labelledby="manual-title">
-  <form id="manual-form">
-    <div class="dialog-heading">
-      <h2 id="manual-title">分配托盘</h2>
-      <div class="manual-heading-actions">
-        <label class="manual-switch"><input id="manual-edit" type="checkbox" role="switch" disabled>手工分配</label>
-        <button type="button" class="dialog-close" data-close="manual-dialog" aria-label="关闭分配">×</button>
-      </div>
-    </div>
-    <h3 class="manual-profile-label">正在切割</h3>
-    <p class="dialog-note" id="manual-profile"></p>
-    <div class="table-wrap manual-list" id="manual-list" hidden>
-      <table aria-label="正在切割的型材零件">
-        <thead><tr><th>零件编号</th><th>工单号</th><th>流向</th><th>标记</th><th class="numeric">长度 / mm</th><th class="numeric">重量 / kg</th><th>分拣状态</th><th>目标托盘</th></tr></thead>
-        <tbody id="manual-rows"></tbody>
-      </table>
-    </div>
-    <p class="dialog-note" id="manual-hint" hidden>手工分配已激活。小于 3,000 mm 选短托盘，3,000 mm 及以上选长托盘。</p>
-    <p class="form-error" id="manual-error" role="alert"></p>
-    <div class="dialog-actions">
-      <button class="btn" type="button" data-close="manual-dialog">关闭</button>
-      <button class="btn" type="button" id="manual-demo">加载演示型材</button>
-      <button class="btn primary" id="manual-confirm" type="submit" hidden>保存分配</button>
-    </div>
-  </form>
-</dialog>
 <script src="pallet-model.js"></script>
 <script src="alert-ui/pallet-alert-ui.js"></script>
 <script src="app.js"></script>
